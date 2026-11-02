@@ -20,18 +20,19 @@
 
 ## Visual design & UX direction
 
+- UI minimalista, con jerarquía visual clara, navegación simple y acciones principales fáciles de localizar.
 - Identidad visual basada en azul oscuro, blanco, azul brillante y verde para estados positivos.
-- Experiencia tipo centro de control, con jerarquía visual clara, estados visibles y acciones principales localizables.
-- Interfaz responsive para distintos tamaños de pantalla.
-- Tablero operativo con servicios agrupados por estado y métricas de servicios en curso, entregas, incidencias y monto listo para cobrar.
-- Búsqueda y filtros por estado, ruta, unidad y responsable.
+- Experiencia tipo centro de control, con estados visibles y agrupación operativa por servicio.
+- Interfaz responsive para distintos tamaños de pantalla; los paneles y vistas laterales deben comportarse correctamente en móvil.
+- Tablero con servicios agrupados por estado y métricas de servicios en curso, entregas, incidencias y monto listo para cobrar.
+- Búsqueda y filtros por estado, ruta, unidad y responsable, con etiquetas y textos directos y consistentes.
 - El expediente de servicio concentra avance, evidencias, incidencias y línea de tiempo.
-- La carga de evidencias debe priorizar archivos reales sobre la captura manual de texto o URLs.
-- Soportar fotografías JPG, PNG y WebP, además de documentos PDF, con límite de 10 MB por archivo.
-- Mostrar las evidencias vinculadas al servicio y permitir abrirlas mediante enlaces temporales.
-- Mantener acciones explícitas como abrir evidencias y validar entrega.
+- La carga de evidencias prioriza archivos reales sobre captura manual de texto o URLs. Soporta JPG, PNG, WebP y PDF, con límite de 10 MB por archivo.
+- Mostrar evidencias vinculadas al servicio mediante enlaces temporales y mantener acciones explícitas como abrir evidencias y validar entrega.
 - La validación de entrega permanece bloqueada cuando el expediente no tiene evidencias.
-- Preferir información persistente y retomable, evitando flujos que dependan únicamente del estado local del navegador.
+- Priorizar información persistente y retomable, evitando flujos que dependan únicamente del estado local del navegador.
+- Accesibilidad integrada: foco visible para teclado, enlace para saltar al contenido, etiquetas claras en controles y mensajes de error anunciables.
+- Respetar la preferencia del usuario por reducir movimiento; evitar animaciones innecesarias.
 
 ## Decisions, constraints & rationale
 
@@ -43,7 +44,9 @@
 - Las evidencias reales se almacenan de forma privada en Supabase Storage y quedan asociadas automáticamente al servicio correspondiente.
 - El acceso a cada archivo se resuelve mediante una URL temporal, en lugar de exponer almacenamiento público.
 - Se eliminó la dependencia de pegar textos o URLs manualmente para registrar evidencias.
-- La aplicación compila correctamente después de corregir un error de sintaxis en la vista lateral del expediente.
+- La interfaz fue simplificada sin alterar los flujos de servicios, evidencias, incidencias, validación y cobranza.
+- Se aplicaron mejoras de navegación, accesibilidad, mensajes de error, comportamiento responsive y reducción de movimiento.
+- La aplicación compila correctamente después de los ajustes recientes.
 - La primera versión prioriza una demostración operativa clara y accionable antes de incorporar capacidades avanzadas de operación real.
 - Próximas capacidades previstas: creación de servicios e inicio de sesión con roles.
 - La solución debe conservar una arquitectura preparada para sustituir o ampliar los datos piloto con operación real e integraciones futuras.
@@ -56,4 +59,4 @@
 - Deben definirse los campos obligatorios exactos que bloquean la validación y el paso a cobranza.
 - No se han confirmado cliente, ruta, formatos de evidencia ni reglas reales del piloto.
 - Se asume que los ocho servicios actuales son datos demostrativos persistidos en Supabase y no información operativa definitiva.
-- El flujo de carga de archivos quedó integrado, pero todavía requiere validación visual/interactiva en navegador dentro del entorno disponible.
+- El flujo de carga de archivos quedó integrado, pero todavía requiere validación visual e interactiva en navegador dentro del entorno disponible.
