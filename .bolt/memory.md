@@ -9,7 +9,7 @@
   - Operaciones: alta, seguimiento, incidencias y cierre.
   - Clientes: estado, evidencias y validación de entrega.
   - Administración/cobranza: expedientes completos y servicios listos para cobrar.
-- La primera versión implementada funciona como centro de control operativo con datos piloto persistentes.
+- La primera versión funciona como centro de control operativo con datos piloto persistentes.
 
 ## Brand personality & voice
 
@@ -26,23 +26,26 @@
 - Tablero operativo con servicios agrupados por estado y métricas de servicios en curso, entregas, incidencias y monto listo para cobrar.
 - Búsqueda y filtros por estado, ruta, unidad y responsable.
 - El expediente de servicio concentra avance, evidencias, incidencias y línea de tiempo.
-- Acciones explícitas como abrir evidencias y validar entrega.
-- Validación de entrega con bloqueo cuando faltan evidencias.
-- Vistas diferenciadas para operación, cobranza e incidencias:
-  - Cobranza: expedientes listos y monto acumulado.
-  - Incidencias: responsables e instrucciones pendientes.
+- La carga de evidencias debe priorizar archivos reales sobre la captura manual de texto o URLs.
+- Soportar fotografías JPG, PNG y WebP, además de documentos PDF, con límite de 10 MB por archivo.
+- Mostrar las evidencias vinculadas al servicio y permitir abrirlas mediante enlaces temporales.
+- Mantener acciones explícitas como abrir evidencias y validar entrega.
+- La validación de entrega permanece bloqueada cuando el expediente no tiene evidencias.
 - Preferir información persistente y retomable, evitando flujos que dependan únicamente del estado local del navegador.
 
 ## Decisions, constraints & rationale
 
 - El expediente por servicio es la unidad principal de trabajo y trazabilidad.
-- La primera implementación cubre el flujo de seguimiento, entrega, evidencias, validación e identificación de servicios listos para cobranza.
+- La primera implementación cubre seguimiento, entrega, evidencias, validación e identificación de servicios listos para cobranza.
 - Los datos piloto están conectados a Supabase y son persistentes.
 - El entorno actual es una aplicación React construida con Vite.
 - El piloto actual contiene ocho servicios de ejemplo.
+- Las evidencias reales se almacenan de forma privada en Supabase Storage y quedan asociadas automáticamente al servicio correspondiente.
+- El acceso a cada archivo se resuelve mediante una URL temporal, en lugar de exponer almacenamiento público.
+- Se eliminó la dependencia de pegar textos o URLs manualmente para registrar evidencias.
 - La aplicación compila correctamente después de corregir un error de sintaxis en la vista lateral del expediente.
-- La primera versión prioriza una demostración operativa clara y accionable antes de incorporar capacidades de operación real más avanzadas.
-- Próximas capacidades previstas: carga real de archivos, creación de servicios e inicio de sesión con roles.
+- La primera versión prioriza una demostración operativa clara y accionable antes de incorporar capacidades avanzadas de operación real.
+- Próximas capacidades previstas: creación de servicios e inicio de sesión con roles.
 - La solución debe conservar una arquitectura preparada para sustituir o ampliar los datos piloto con operación real e integraciones futuras.
 
 ## Open questions & assumptions
@@ -50,7 +53,7 @@
 - Aún no está definido si la transición inmediata será hacia una herramienta operativa real o una demostración ampliada.
 - Falta confirmar el modelo de autenticación, roles y permisos por vista.
 - Falta implementar y definir el flujo completo de creación de servicios.
-- Falta implementar carga, almacenamiento y visualización de archivos reales de evidencia.
 - Deben definirse los campos obligatorios exactos que bloquean la validación y el paso a cobranza.
 - No se han confirmado cliente, ruta, formatos de evidencia ni reglas reales del piloto.
 - Se asume que los ocho servicios actuales son datos demostrativos persistidos en Supabase y no información operativa definitiva.
+- El flujo de carga de archivos quedó integrado, pero todavía requiere validación visual/interactiva en navegador dentro del entorno disponible.

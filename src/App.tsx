@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle, ArrowUpRight, Bell, Check, CheckCircle2, ChevronRight, CircleDollarSign,
   Clock3, FileCheck2, FileText, LayoutDashboard, ListFilter, MapPin, Menu, PackageCheck,
-  RefreshCw, Route, Search, ShieldCheck, Truck, X,
+  RefreshCw, Route, Search, ShieldCheck, Truck, Upload, X,
 } from 'lucide-react';
 import { supabase } from './lib/supabase';
 
 type Status = 'scheduled' | 'in_transit' | 'delivered' | 'incident' | 'ready_for_billing';
 type Service = { id: string; reference: string; origin: string; destination: string; unit: string; operator_name: string; responsible: string; scheduled_at: string; status: Status; progress: number; billing_amount: number; delivered_at: string | null; billing_ready_at: string | null; client_id: string };
-type Evidence = { id: string; service_id: string; evidence_type: 'pod' | 'photo' | 'document' | 'note'; title: string; notes: string | null; uploaded_at: string; validated: boolean };
+type Evidence = { id: string; service_id: string; evidence_type: 'pod' | 'photo' | 'document' | 'note'; title: string; notes: string | null; uploaded_at: string; validated: boolean; file_path: string | null; mime_type: string | null; size_bytes: number | null };
 type Incident = { id: string; service_id: string; incident_type: string; occurred_at: string; impact: string; responsible: string; pending_action: string; resolved: boolean };
 type Event = { id: string; service_id: string; event_type: string; title: string; detail: string | null; occurred_at: string };
 type Validation = { id: string; service_id: string; validated_by: string; validated_at: string; accepted: boolean; notes: string | null };
@@ -31,7 +31,9 @@ export default function App() {
   const [view, setView] = useState<'dashboard' | 'incidents' | 'billing'>('dashboard');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = async () => {
     setLoading(true); setError('');
@@ -78,6 +80,33 @@ export default function App() {
     await load(); setSaving(false); setSelected({ ...selected, status: nextStatus, progress: 100, billing_ready_at: now }); setValidation({ id: 'new', service_id: selected.id, validated_by: 'Equipo Ruta Limpia', validated_at: now, accepted: true, notes: 'Entrega revisada y aceptada.' });
   };
 
+  const uploadEvidence = async (file: File) => {
+    if (!selected) return;
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+    if (!allowedTypes.includes(file.type) || file.size > 10 * 1024 * 1024) {
+      setError('Solo se aceptan fotos JPG, PNG o WebP y documentos PDF de hasta 10 MB.');
+      return;
+    }
+    setUploading(true); setError('');
+    const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+    const filePath = `${selected.id}/${crypto.randomUUID()}-${safeName}`;
+    const { error: uploadError } = await supabase.storage.from('service-evidence').upload(filePath, file, { contentType: file.type, upsert: false });
+    if (uploadError) { setError('No se pudo cargar el archivo. Intenta de nuevo.'); setUploading(false); return; }
+    const evidenceType: Evidence['evidence_type'] = file.type === 'application/pdf' ? 'document' : 'photo';
+    const { error: insertError } = await supabase.from('evidences').insert({ service_id: selected.id, evidence_type: evidenceType, title: file.name, file_path: filePath, mime_type: file.type, size_bytes: file.size, notes: 'Archivo cargado por operaciones.' });
+    if (insertError) { await supabase.storage.from('service-evidence').remove([filePath]); setError('No se pudo registrar el archivo en el expediente.'); setUploading(false); return; }
+    const { data: evidenceData } = await supabase.from('evidences').select('*').eq('file_path', filePath).maybeSingle();
+    if (evidenceData) setEvidences((current) => [evidenceData as Evidence, ...current]);
+    setUploading(false);
+  };
+
+  const openEvidence = async (evidence: Evidence) => {
+    if (!evidence.file_path) return;
+    const { data, error: urlError } = await supabase.storage.from('service-evidence').createSignedUrl(evidence.file_path, 60 * 5);
+    if (urlError || !data?.signedUrl) { setError('No se pudo abrir este archivo.'); return; }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
   const visibleIncidents = view === 'incidents' ? incidents : incidents.slice(0, 2);
   return <div className="app-shell">
     <aside className="sidebar">
@@ -96,7 +125,7 @@ export default function App() {
         {view === 'incidents' && <IncidentView incidents={visibleIncidents} services={services} onOpen={(service) => void openService(service)} />}
       </div>
     </main>
-    {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}><aside className="drawer" onClick={(e) => e.stopPropagation()}><div className="drawer-header"><div><span className={`status-pill ${statusInfo[selected.status].color}`}>{statusInfo[selected.status].label}</span><h2>{selected.reference}</h2><p>{selected.origin} <ArrowUpRight size={14} /> {selected.destination}</p></div><button className="close-button" onClick={() => setSelected(null)}><X size={20} /></button></div><div className="drawer-body"><div className="route-summary"><div><span>Cliente</span><strong>Grupo Nortecarga</strong></div><div><span>Responsable</span><strong>{selected.responsible}</strong></div><div><span>Unidad / operador</span><strong>{selected.unit} · {selected.operator_name}</strong></div></div><div className="progress-card"><div className="progress-head"><span>Avance del servicio</span><strong>{selected.progress}%</strong></div><div className="progress-track"><span style={{ width: `${selected.progress}%` }} /></div><div className="step-labels"><span className="done">Salida</span><span className={selected.progress >= 60 ? 'done' : ''}>En ruta</span><span className={selected.progress >= 90 ? 'done' : ''}>Entrega</span><span className={selected.progress === 100 ? 'done' : ''}>Cobro</span></div></div><div className="drawer-section"><div className="section-title"><h3>Evidencias</h3><span>{evidences.filter((e) => e.service_id === selected.id).length} archivos</span></div>{evidences.filter((e) => e.service_id === selected.id).length ? evidences.filter((e) => e.service_id === selected.id).map((e) => <div className="evidence-row" key={e.id}><div className="evidence-icon"><FileText size={17} /></div><div><strong>{e.title}</strong><span>{e.notes ?? 'Sin observaciones'} · {formatTime(e.uploaded_at)}</span></div><CheckCircle2 className="evidence-check" size={17} /></div>) : <div className="empty-small">Aún no hay evidencias cargadas.</div>}</div><div className="drawer-section"><div className="section-title"><h3>Incidencias</h3><span>{incidents.filter((i) => i.service_id === selected.id).length}</span></div>{incidents.filter((i) => i.service_id === selected.id).map((i) => <div className="incident-card" key={i.id}><div className="incident-card-head"><AlertTriangle size={16} /><strong>{i.incident_type}</strong><span>{i.resolved ? 'Resuelta' : 'Abierta'}</span></div><p>{i.impact}</p><small>Próximo paso: {i.pending_action}</small></div>)}{!incidents.some((i) => i.service_id === selected.id) && <div className="empty-small">Sin incidencias registradas.</div>}</div><div className="drawer-section"><div className="section-title"><h3>Línea de tiempo</h3></div>{events.length ? <div className="timeline">{events.map((event) => <div className="timeline-item" key={event.id}><span className="timeline-dot" /><div><strong>{event.title}</strong><span>{event.detail}</span><small>{formatTime(event.occurred_at)}</small></div></div>)}</div> : <div className="empty-small">Este servicio todavía no tiene eventos registrados.</div>}</div></div><div className="drawer-footer">{validation ? <div className="validated"><ShieldCheck size={18} /><div><strong>Entrega validada</strong><span>Por {validation.validated_by} · {formatTime(validation.validated_at)}</span></div></div> : <button className="primary-button" onClick={() => void validateDelivery()} disabled={saving}><Check size={17} /> {saving ? 'Guardando...' : 'Validar entrega'}</button>}</div></aside></div>}
+    {selected && <div className="modal-backdrop" onClick={() => setSelected(null)}><aside className="drawer" onClick={(e) => e.stopPropagation()}><div className="drawer-header"><div><span className={`status-pill ${statusInfo[selected.status].color}`}>{statusInfo[selected.status].label}</span><h2>{selected.reference}</h2><p>{selected.origin} <ArrowUpRight size={14} /> {selected.destination}</p></div><button className="close-button" onClick={() => setSelected(null)}><X size={20} /></button></div><div className="drawer-body"><div className="route-summary"><div><span>Cliente</span><strong>Grupo Nortecarga</strong></div><div><span>Responsable</span><strong>{selected.responsible}</strong></div><div><span>Unidad / operador</span><strong>{selected.unit} · {selected.operator_name}</strong></div></div><div className="progress-card"><div className="progress-head"><span>Avance del servicio</span><strong>{selected.progress}%</strong></div><div className="progress-track"><span style={{ width: `${selected.progress}%` }} /></div><div className="step-labels"><span className="done">Salida</span><span className={selected.progress >= 60 ? 'done' : ''}>En ruta</span><span className={selected.progress >= 90 ? 'done' : ''}>Entrega</span><span className={selected.progress === 100 ? 'done' : ''}>Cobro</span></div></div><div className="drawer-section"><div className="section-title"><div><h3>Evidencias</h3><span>{evidences.filter((e) => e.service_id === selected.id).length} archivos</span></div><><input ref={fileInputRef} className="file-input" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadEvidence(file); event.target.value = ''; }} /><button className="upload-button" onClick={() => fileInputRef.current?.click()} disabled={uploading}><Upload size={14} /> {uploading ? 'Cargando...' : 'Subir evidencia'}</button></></div>{evidences.filter((e) => e.service_id === selected.id).length ? evidences.filter((e) => e.service_id === selected.id).map((e) => <button className="evidence-row evidence-clickable" key={e.id} onClick={() => void openEvidence(e)} disabled={!e.file_path}><div className="evidence-icon"><FileText size={17} /></div><div><strong>{e.title}</strong><span>{e.notes ?? 'Sin observaciones'} · {formatTime(e.uploaded_at)}</span></div>{e.file_path ? <ArrowUpRight className="evidence-open" size={17} /> : <CheckCircle2 className="evidence-check" size={17} />}</button>) : <div className="empty-small">Aún no hay evidencias cargadas.</div>}</div><div className="drawer-section"><div className="section-title"><h3>Incidencias</h3><span>{incidents.filter((i) => i.service_id === selected.id).length}</span></div>{incidents.filter((i) => i.service_id === selected.id).map((i) => <div className="incident-card" key={i.id}><div className="incident-card-head"><AlertTriangle size={16} /><strong>{i.incident_type}</strong><span>{i.resolved ? 'Resuelta' : 'Abierta'}</span></div><p>{i.impact}</p><small>Próximo paso: {i.pending_action}</small></div>)}{!incidents.some((i) => i.service_id === selected.id) && <div className="empty-small">Sin incidencias registradas.</div>}</div><div className="drawer-section"><div className="section-title"><h3>Línea de tiempo</h3></div>{events.length ? <div className="timeline">{events.map((event) => <div className="timeline-item" key={event.id}><span className="timeline-dot" /><div><strong>{event.title}</strong><span>{event.detail}</span><small>{formatTime(event.occurred_at)}</small></div></div>)}</div> : <div className="empty-small">Este servicio todavía no tiene eventos registrados.</div>}</div></div><div className="drawer-footer">{validation ? <div className="validated"><ShieldCheck size={18} /><div><strong>Entrega validada</strong><span>Por {validation.validated_by} · {formatTime(validation.validated_at)}</span></div></div> : <button className="primary-button" onClick={() => void validateDelivery()} disabled={saving}><Check size={17} /> {saving ? 'Guardando...' : 'Validar entrega'}</button>}</div></aside></div>}
   </div>;
 }
 
